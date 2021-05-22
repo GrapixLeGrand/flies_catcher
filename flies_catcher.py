@@ -1,12 +1,21 @@
 import cv2 as cv
 import numpy as np
 
+video_stream = cv.VideoCapture(0)
+
+was_captured, frame = video_stream.read()
+
 target = 'flies2.jpg'
 patterns = ['fly.jpg', 'fly1.png', 'fly2.png', 'fly3.png', 'fly4.png']
 patterns = ['pattern/' + p for p in patterns]
 
-target_img = cv.imread(target, 0)
-target_img_colored = cv.imread(target)
+if (was_captured):
+    target_img = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+    target_img_colored = frame
+else:
+    print("failed to read camera")
+    target_img = cv.imread(target, 0)
+    target_img_colored = cv.imread(target)
 
 target_dim = (target_img.shape[1], target_img.shape[0])
 fly_dim_pixel = (target_dim[0] // 7, target_dim[1] // 5)
