@@ -1,29 +1,56 @@
 import cv2 as cv
 import numpy as np
+import argparse
 
-video_stream = cv.VideoCapture(0)
 
-was_captured, frame = video_stream.read()
+### start of parsing time
 
-target = 'flies2.jpg'
-patterns = ['fly.jpg', 'fly1.png', 'fly2.png', 'fly3.png', 'fly4.png']
-patterns = ['pattern/' + p for p in patterns]
+parser = argparse.ArgumentParser(description='Select behavior')
+parser.add_argument('--c', help='continous mode, automatically using the cam', action='store_true')
+parser.add_argument('--cam', help='if flag set we try to use the cam', action='store_true')
 
-if (was_captured):
-    target_img = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-    target_img_colored = frame
+args, _ = parser.parse_known_args()
+
+continous_mode = args.c
+use_cam = args.cam
+
+if (continous_mode):
+    use_cam = True
+    print("--> continous mode enabled")
 else:
-    print("failed to read camera")
-    target_img = cv.imread(target, 0)
-    target_img_colored = cv.imread(target)
+    print("--> continous mode disabled")
 
-target_dim = (target_img.shape[1], target_img.shape[0])
-fly_dim_pixel = (target_dim[0] // 7, target_dim[1] // 5)
+if (use_cam):
+    video_stream = cv.VideoCapture(-1)
+    print("--> using cam")
+else:
+    video_stream = None
+    print("--> not using cam")
 
-print(target_dim)
-print(fly_dim_pixel)
+### end of parsing time
 
-patterns_imgs = [ cv.imread(p,0) for p in patterns]
+#unused for now
+MIN_THRESHOLD = 0
+MAX_THRESHOLD = 0
+
+"""return the current rgb image, if not using cam, will return always the same image"""
+def get_image_rgb():
+    if (use_cam):
+        was_captured, frame = video_stream.read()
+        assert(was_captured)
+        return frame
+    else:
+        return cv.imread(default_target)
+
+"""return the current rgb image, if not using cam, will return always the same image"""
+def get_image_grayscale():
+    if (use_cam):
+        was_captured, frame = video_stream.read()
+        assert(was_captured)
+        return cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+    else:
+        return cv.imread(default_target, 0)
+
 
 """resize the images so that they are in the target"""
 def resize_for_target(img, target_dim):
@@ -33,8 +60,6 @@ def resize_with_factor(img, factor):
     dim = (img.shape[1], img.shape[0])
     dim = (int(dim[0] * factor), int(dim[1] * factor))
     return cv.resize(img, dim, interpolation = cv.INTER_AREA)
-
-patterns_imgs = [resize_for_target(p, fly_dim_pixel) for p in patterns_imgs]
     
 """Find the pattern in the target and returns the top-left and bottom right corners if found"""
 def find_box_with_pattern(target_img, pattern_img):
@@ -93,12 +118,39 @@ def show_labeled_image_with_corners(target_img, corners):
         cv.rectangle(showed_img, c[0], c[1], (0, 0, 255), 2)
         
     cv.imshow('image', showed_img)
+        
+
+default_target = 'flies2.jpg'
+patterns_names = ['fly.jpg', 'fly1.png', 'fly2.png', 'fly3.png', 'fly4.png']
+patterns_path = ['pattern/' + p for p in patterns_names]
+
+dummy_image = get_image_rgb() #just to get the initial size
+target_dim = (dummy_image.shape[1], dummy_image.shape[0])
+fly_dim_pixel = (target_dim[0] // 7, target_dim[1] // 5)
+
+#print(target_dim)
+#print(fly_dim_pixel)
+
+patterns = [cv.imread(p,0) for p in patterns_path]
+patterns = [resize_for_target(p, fly_dim_pixel) for p in patterns]
+
+exit_requested = False
+
+while(not exit_requested):
+
+    target_grayscale = get_image_grayscale()
+    target_rgb = get_image_rgb()
+    corners = find_for_all_patterns_resize(target_grayscale, patterns)
+    show_labeled_image_with_corners(target_rgb, corners)
+    #print(len(corners))
+    key = cv.waitKey(1) & 0xFF
+    if (key == ord('q') or not continous_mode):
+        exit_requested = True
+
+if (not exit_requested):
     cv.waitKey(0)
-    cv.destroyAllWindows()     
+    
+cv.destroyAllWindows() 
 
-corners = find_for_all_patterns_resize(target_img, patterns_imgs)
-show_labeled_image_with_corners(target_img_colored, corners)
-print(len(corners))
-
-
+print("--> program ended")
 
