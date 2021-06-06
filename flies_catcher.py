@@ -5,6 +5,9 @@ import argparse
 
 ### start of parsing time
 
+import os
+#os.environ['DISPLAY'] = ':1'
+
 parser = argparse.ArgumentParser(description='Select behavior')
 parser.add_argument('--c', help='continous mode, automatically using the cam', action='store_true')
 parser.add_argument('--cam', help='if flag set we try to use the cam', action='store_true')
