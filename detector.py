@@ -3,6 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import time
 import argparse
+import traceback
 
 #####################################################################################
 # Constants
@@ -20,7 +21,7 @@ DISTANCE_THRESHOLD = 10 #maximum distance beetween each rgb component and the me
 GRAYSCALE_THRESHOLD = 30 #maximum brightness allowed
 RESIZE_FACTOR = 50 #resize value in pixels
 LOW_PASS_FILTER_KERNEL_DIMS = (4, 4) #size of the kernel matrix
-BLOBS_SIZES_BOUNDS = (7, 10) #bounds on the blob sizes
+BLOBS_SIZES_BOUNDS = (7, 100) #bounds on the blob sizes
 SUBSET_IMG_SIDE_LENGTH = None #side of a subset square in the image (in pixels) if None does not have effect
 
 #for the blob detection
@@ -32,22 +33,35 @@ BLOB_DETECTOR_PARAMS.filterByArea = True
 BLOB_DETECTOR_PARAMS.minArea = BLOBS_SIZES_BOUNDS[0]
 BLOB_DETECTOR_PARAMS.maxArea = BLOBS_SIZES_BOUNDS[1]
 
+#for the motors
+SERVO_PIN = None
+TURBINE_PIN = None
+
+SERVO_OPENING_ANGLE = 80
+SERVO_CLOSING_ANGLE = 90
+VORTEX_DURATION = 2
+
 #utils
 EXIT_KEY = 'q'
 VIDEO_SOURCE_INDEX = -1
 
 
 #####################################################################################
-# Argument
+# Program arguments
 #####################################################################################
 
 parser = argparse.ArgumentParser(description='Select behavior')
 parser.add_argument('--continous', help='continous mode, automatically using the cam', action='store_true')
 parser.add_argument('--cam', help='if flag set we try to use the cam', action='store_true')
+parser.add_argument('--disable_motors', help='run detection without motors', action='store_true')
 args, _ = parser.parse_known_args()
 
+#behavioral constants
 CONTINOUS_MODE = args.continous
 CAM_MODE = args.cam
+SILENT_MODE = args.disable_motors
+
+print(SILENT_MODE)
 
 if (CONTINOUS_MODE):
     CAM_MODE = True
@@ -85,22 +99,20 @@ def get_image_rgb():
 #Becoming "pi" agnostic, if pigpio is missing we are on desktop testing and we mock the
 #motors
 PIGPIO_MISSING = False
-PWM_PIN = None
-MOTOR_PIN = None
+DETECTION_FLOOD_DURATION = 2
 
-SERVO_OPENING_ANGLE = 80
-SERVO_CLOSING_ANGLE = 90
-VORTEX_DURATION = 2
+last_detection_time = 0
 
 try:
     import pigpio
 except ImportError:
+    print("pigpio module is missing, use mock motors")
     PIGPIO_MISSING = True
 
 """init the motors of the board"""
 def init_motors():
     print("----> init motors")
-    if (PIGPIO_MISSING):
+    if (PIGPIO_MISSING or SILENT_MODE):
         return
 
 """convert an angle from [0, 180] degrees to the range [1000, 2000] ms"""
@@ -110,7 +122,7 @@ def angle_to_pulse_width(angle):
 """set the target angle of the servo"""
 def set_servo_angle(angle):
     print("----> servo angle target = ", angle)
-    if (PIGPIO_MISSING):
+    if (PIGPIO_MISSING or SILENT_MODE):
         return
 
 """set the motor on or off"""
@@ -120,10 +132,21 @@ def set_motor(state):
     else:
         print("----> motor off")
 
-    if (PIGPIO_MISSING):
+    if (PIGPIO_MISSING or SILENT_MODE):
         return
 
 def fly_catch_sketch():
+    
+    global last_detection_time
+
+    if (SILENT_MODE):
+        return
+
+    if (time.time() - last_detection_time < DETECTION_FLOOD_DURATION):
+        return
+
+    last_detection_time = time.time()
+    
     print("--> vortex on !")
     set_servo_angle(SERVO_OPENING_ANGLE)
     set_motor(True)
@@ -339,9 +362,6 @@ def preprocessing_pipeline_matplotlib(img):
     
     return img
 
- 
-#preprocessed_img = preprocessing_pipeline_matplotlib(convert_bgr_to_rgb(img))
-
 
 """returns an image with all the pipeline"""
 def pipeline_opencv(img):
@@ -370,6 +390,9 @@ def pipeline_opencv(img):
     
     return blob_sizes, np.concatenate(images, axis=1)
 
+#####################################################################################
+# Main loop
+#####################################################################################
 
 exit_requested = False
 error = False
@@ -377,6 +400,7 @@ error = False
 cv.namedWindow('result', cv.WINDOW_NORMAL)
 cv.resizeWindow('result', WINDOW_DIMS[0], WINDOW_DIMS[1])
 init_motors()
+set_servo_angle(SERVO_CLOSING_ANGLE)
 
 try:
     while (not exit_requested):
@@ -392,7 +416,7 @@ try:
 
         cv.imshow('result', res)
 
-        #threshold detection
+        #threshold detection if we allowed the motors to work and if we detected at least one blob
         if (len(blob_sizes) > 0):
             fly_catch_sketch()
 
@@ -404,6 +428,7 @@ except:
     #to ensure that we detroy the opencv window on problem
     error = True
     print("program crashed")
+    traceback.print_exc()
 finally:
     if (not CONTINOUS_MODE and not error):
         cv.waitKey()
