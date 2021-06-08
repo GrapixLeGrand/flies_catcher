@@ -9,25 +9,28 @@ import argparse
 #####################################################################################
 
 #allows to run on a computer without cam
-DEFAULT_TARGET = cv.imread("flies.jpg")
+DEFAULT_TARGET = cv.imread("images/flies.jpg")
 
 #opencv output
 WINDOW_DIMS = (1500, 200)
 
-#pipeline constants
+#detection pipeline constants
 WHITE_RGB = np.array([255, 255, 255], dtype=np.uint8)
-DISTANCE_THRESHOLD = 10
-GRAYSCALE_THRESHOLD = 120
-RESIZE_FACTOR = 50
-LOW_PASS_FILTER_KERNEL_DIMS = (4, 4)
-BLOBS_SIZES_BOUNDS = (7, 10)
+DISTANCE_THRESHOLD = 10 #maximum distance beetween each rgb component and the mean of the three
+GRAYSCALE_THRESHOLD = 30 #maximum brightness allowed
+RESIZE_FACTOR = 50 #resize value in pixels
+LOW_PASS_FILTER_KERNEL_DIMS = (4, 4) #size of the kernel matrix
+BLOBS_SIZES_BOUNDS = (7, 10) #bounds on the blob sizes
+SUBSET_IMG_SIDE_LENGTH = None #side of a subset square in the image (in pixels) if None does not have effect
 
 #for the blob detection
 BLOB_DETECTOR_PARAMS = cv.SimpleBlobDetector_Params()
 BLOB_DETECTOR_PARAMS.filterByConvexity = False
 BLOB_DETECTOR_PARAMS.filterByCircularity = False
 BLOB_DETECTOR_PARAMS.filterByInertia = False
-BLOB_DETECTOR_PARAMS.filterByArea = False
+BLOB_DETECTOR_PARAMS.filterByArea = True
+BLOB_DETECTOR_PARAMS.minArea = BLOBS_SIZES_BOUNDS[0]
+BLOB_DETECTOR_PARAMS.maxArea = BLOBS_SIZES_BOUNDS[1]
 
 #utils
 EXIT_KEY = 'q'
@@ -53,8 +56,12 @@ else:
     print("--> continous mode disabled")
 
 if (CAM_MODE):
-    video_stream = cv.VideoCapture(VIDEO_SOURCE_INDEX)
-    print("--> using cam")
+    try:
+        video_stream = cv.VideoCapture(VIDEO_SOURCE_INDEX)
+        print("--> using cam")
+    except:
+        print("--> failed to open the cam, fallback on using the default image")
+        CAM_MODE = False
 else:
     video_stream = None
     print("--> not using cam")
@@ -71,6 +78,59 @@ def get_image_rgb():
     else:
         return DEFAULT_TARGET
 
+#####################################################################################
+# Motors part
+#####################################################################################
+
+#Becoming "pi" agnostic, if pigpio is missing we are on desktop testing and we mock the
+#motors
+PIGPIO_MISSING = False
+PWM_PIN = None
+MOTOR_PIN = None
+
+SERVO_OPENING_ANGLE = 80
+SERVO_CLOSING_ANGLE = 90
+VORTEX_DURATION = 2
+
+try:
+    import pigpio
+except ImportError:
+    PIGPIO_MISSING = True
+
+"""init the motors of the board"""
+def init_motors():
+    print("----> init motors")
+    if (PIGPIO_MISSING):
+        return
+
+"""convert an angle from [0, 180] degrees to the range [1000, 2000] ms"""
+def angle_to_pulse_width(angle):
+    return 0
+
+"""set the target angle of the servo"""
+def set_servo_angle(angle):
+    print("----> servo angle target = ", angle)
+    if (PIGPIO_MISSING):
+        return
+
+"""set the motor on or off"""
+def set_motor(state):
+    if (state):
+        print("----> motor on")
+    else:
+        print("----> motor off")
+
+    if (PIGPIO_MISSING):
+        return
+
+def fly_catch_sketch():
+    print("--> vortex on !")
+    set_servo_angle(SERVO_OPENING_ANGLE)
+    set_motor(True)
+    time.sleep(VORTEX_DURATION)
+    set_servo_angle(SERVO_CLOSING_ANGLE)
+    set_motor(False)
+    print("--> vortex off !")
 
 #####################################################################################
 # Detection part
@@ -202,6 +262,21 @@ def set_boarders_black(img):
     return set_image_boarders(img, 0)
 
 """
+returns a square subset of the image
+"""
+def get_img_centered_square_subset(img, size):
+    width = int(img.shape[1])
+    height = int(img.shape[0])
+    assert(size <= max(width, height))
+    mid = (width // 2, height // 2)
+    size_half = size // 2
+    bottom_left = (mid[0] - size_half, mid[1] - size_half)
+    top_left = (mid[0] - size_half, mid[1] + size_half)
+    bottom_right = (mid[0] + size_half, mid[1] - size_half)
+    
+    return img[bottom_left[1]:top_left[1], bottom_left[0]:bottom_right[0], ]
+
+"""
 preproessing pipeline:
 
 1. we resize the image 
@@ -301,18 +376,25 @@ error = False
 
 cv.namedWindow('result', cv.WINDOW_NORMAL)
 cv.resizeWindow('result', WINDOW_DIMS[0], WINDOW_DIMS[1])
+init_motors()
 
 try:
     while (not exit_requested):
         
         img = get_image_rgb()
         starting_time = round(time.time() * 1000)
+
+        if (SUBSET_IMG_SIDE_LENGTH is not None):
+            img = get_img_centered_square_subset(img, SUBSET_IMG_SIDE_LENGTH)
+    
         blob_sizes, res = pipeline_opencv(img)
-        print("t = ", str(round(time.time() * 1000) - starting_time), " ms")
+        print("t = ", str(round(time.time() * 1000) - starting_time), " ms, n_blobs = ", len(blob_sizes))
 
         cv.imshow('result', res)
 
         #threshold detection
+        if (len(blob_sizes) > 0):
+            fly_catch_sketch()
 
         key = cv.waitKey(1) & 0xFF
         if (key == ord(EXIT_KEY) or not CONTINOUS_MODE):
