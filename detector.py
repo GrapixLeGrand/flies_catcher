@@ -305,7 +305,6 @@ cv.resizeWindow('result', WINDOW_DIMS[0], WINDOW_DIMS[1])
 try:
     while (not exit_requested):
         
-
         img = get_image_rgb()
         starting_time = round(time.time() * 1000)
         blob_sizes, res = pipeline_opencv(img)
@@ -318,7 +317,6 @@ try:
         key = cv.waitKey(1) & 0xFF
         if (key == ord(EXIT_KEY) or not CONTINOUS_MODE):
             exit_requested = True
-
 
 except:
     #to ensure that we detroy the opencv window on problem
