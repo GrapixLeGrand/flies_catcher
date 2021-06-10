@@ -34,8 +34,8 @@ BLOB_DETECTOR_PARAMS.minArea = BLOBS_SIZES_BOUNDS[0]
 BLOB_DETECTOR_PARAMS.maxArea = BLOBS_SIZES_BOUNDS[1]
 
 #for the motors
-SERVO_PIN = None
-TURBINE_PIN = None
+SERVO_PIN = 18
+TURBINE_PIN = 17
 
 SERVO_OPENING_ANGLE = 80
 SERVO_CLOSING_ANGLE = 90
@@ -101,7 +101,11 @@ def get_image_rgb():
 PIGPIO_MISSING = False
 DETECTION_FLOOD_DURATION = 2
 
+MIN_PWM = 1000
+MAX_PWM = 2000
+
 last_detection_time = 0
+PI = None
 
 try:
     import pigpio
@@ -114,16 +118,29 @@ def init_motors():
     print("----> init motors")
     if (PIGPIO_MISSING or SILENT_MODE):
         return
+    PI = pigpio.pi()
+    PI.set_mode(SERVO_PIN, pigpio.OUTPUT)
+    PI.set_mode(TURBINE_PIN, pigpio.OUTPUT)
+
+def clean_motors():
+    print("----> clean motors")
+    if (PIGPIO_MISSING or SILENT_MODE):
+        return
+    PI.stop()
 
 """convert an angle from [0, 180] degrees to the range [1000, 2000] ms"""
 def angle_to_pulse_width(angle):
-    return 0
+    assert(angle >= 0 and angle <= 180)
+    angle_norm = angle / 180.0
+    pwm_range = MAX_PWM - MIN_PWM
+    return pwm_range * angle_norm + MIN_PWM
 
 """set the target angle of the servo"""
 def set_servo_angle(angle):
     print("----> servo angle target = ", angle)
     if (PIGPIO_MISSING or SILENT_MODE):
         return
+    PI.set_servo_pulsewidth(SERVO_PIN, angle_to_pulse_width(angle))
 
 """set the motor on or off"""
 def set_motor(state):
@@ -134,6 +151,7 @@ def set_motor(state):
 
     if (PIGPIO_MISSING or SILENT_MODE):
         return
+    PI.write(TURBINE_PIN, state)
 
 def fly_catch_sketch():
     
@@ -149,10 +167,10 @@ def fly_catch_sketch():
     
     print("--> vortex on !")
     set_servo_angle(SERVO_OPENING_ANGLE)
-    set_motor(True)
+    set_motor(1)
     time.sleep(VORTEX_DURATION)
     set_servo_angle(SERVO_CLOSING_ANGLE)
-    set_motor(False)
+    set_motor(0)
     print("--> vortex off !")
 
 #####################################################################################
@@ -430,6 +448,7 @@ except:
     print("program crashed")
     traceback.print_exc()
 finally:
+    clean_motors()
     if (not CONTINOUS_MODE and not error):
         cv.waitKey()
     cv.destroyAllWindows()
