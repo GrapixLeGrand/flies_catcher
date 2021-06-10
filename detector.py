@@ -37,8 +37,8 @@ BLOB_DETECTOR_PARAMS.maxArea = BLOBS_SIZES_BOUNDS[1]
 SERVO_PIN = 18
 TURBINE_PIN = 17
 
-SERVO_OPENING_ANGLE = 10
-SERVO_CLOSING_ANGLE = 45
+SERVO_OPENING_ANGLE = 90
+SERVO_CLOSING_ANGLE = 10
 VORTEX_DURATION = 2
 
 #utils
@@ -101,8 +101,8 @@ def get_image_rgb():
 PIGPIO_MISSING = False
 DETECTION_FLOOD_DURATION = 2
 
-MIN_PWM = 1000
-MAX_PWM = 2000
+MIN_PWM = 500
+MAX_PWM = 2500
 
 last_detection_time = 0
 PI = None
@@ -133,7 +133,7 @@ def clean_motors():
 
 """convert an angle from [0, 180] degrees to the range [1000, 2000] ms"""
 def angle_to_pulse_width(angle):
-    assert(angle >= 0 and angle <= 180)
+    assert(angle >= 5 and angle <= 175) #just to stay safe
     angle_norm = angle / 180.0
     pwm_range = MAX_PWM - MIN_PWM
     return pwm_range * angle_norm + MIN_PWM
