@@ -1,6 +1,6 @@
 import cv2 as cv
 import numpy as np
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
 import time
 import argparse
 import traceback
@@ -17,7 +17,7 @@ WINDOW_DIMS = (1500, 200)
 
 #detection pipeline constants
 WHITE_RGB = np.array([255, 255, 255], dtype=np.uint8)
-DISTANCE_THRESHOLD = 10 #maximum distance beetween each rgb component and the mean of the three
+DISTANCE_THRESHOLD = 25 #maximum distance beetween each rgb component and the mean of the three
 GRAYSCALE_THRESHOLD = 30 #maximum brightness allowed
 RESIZE_FACTOR = 50 #resize value in pixels
 LOW_PASS_FILTER_KERNEL_DIMS = (4, 4) #size of the kernel matrix
@@ -37,8 +37,8 @@ BLOB_DETECTOR_PARAMS.maxArea = BLOBS_SIZES_BOUNDS[1]
 SERVO_PIN = 18
 TURBINE_PIN = 17
 
-SERVO_OPENING_ANGLE = 80
-SERVO_CLOSING_ANGLE = 90
+SERVO_OPENING_ANGLE = 10
+SERVO_CLOSING_ANGLE = 45
 VORTEX_DURATION = 2
 
 #utils
@@ -115,18 +115,21 @@ except ImportError:
 
 """init the motors of the board"""
 def init_motors():
-    print("----> init motors")
-    if (PIGPIO_MISSING or SILENT_MODE):
-        return
-    PI = pigpio.pi()
-    PI.set_mode(SERVO_PIN, pigpio.OUTPUT)
-    PI.set_mode(TURBINE_PIN, pigpio.OUTPUT)
+	global PI
+	print("----> init motors")
+	if (PIGPIO_MISSING or SILENT_MODE):
+		return
+	print("effectively initializing motors")
+	PI = pigpio.pi()
+	PI.set_mode(SERVO_PIN, pigpio.OUTPUT)
+	PI.set_mode(TURBINE_PIN, pigpio.OUTPUT)
 
 def clean_motors():
-    print("----> clean motors")
-    if (PIGPIO_MISSING or SILENT_MODE):
-        return
-    PI.stop()
+	global PI
+	print("----> clean motors")
+	if (PIGPIO_MISSING or SILENT_MODE):
+		return
+	PI.stop()
 
 """convert an angle from [0, 180] degrees to the range [1000, 2000] ms"""
 def angle_to_pulse_width(angle):
@@ -137,21 +140,22 @@ def angle_to_pulse_width(angle):
 
 """set the target angle of the servo"""
 def set_servo_angle(angle):
-    print("----> servo angle target = ", angle)
-    if (PIGPIO_MISSING or SILENT_MODE):
-        return
-    PI.set_servo_pulsewidth(SERVO_PIN, angle_to_pulse_width(angle))
+	global PI
+	print("----> servo angle target = ", angle)
+	if (PIGPIO_MISSING or SILENT_MODE):
+		return
+	PI.set_servo_pulsewidth(SERVO_PIN, angle_to_pulse_width(angle))
 
 """set the motor on or off"""
 def set_motor(state):
-    if (state):
-        print("----> motor on")
-    else:
-        print("----> motor off")
-
-    if (PIGPIO_MISSING or SILENT_MODE):
-        return
-    PI.write(TURBINE_PIN, state)
+	global PI
+	if (state):
+		print("----> motor on")
+	else:
+		print("----> motor off")
+	if (PIGPIO_MISSING or SILENT_MODE):
+		return
+	PI.write(TURBINE_PIN, state)
 
 def fly_catch_sketch():
     
@@ -167,10 +171,10 @@ def fly_catch_sketch():
     
     print("--> vortex on !")
     set_servo_angle(SERVO_OPENING_ANGLE)
-    set_motor(1)
+    set_motor(0)
     time.sleep(VORTEX_DURATION)
     set_servo_angle(SERVO_CLOSING_ANGLE)
-    set_motor(0)
+    set_motor(1)
     print("--> vortex off !")
 
 #####################################################################################
@@ -419,6 +423,7 @@ cv.namedWindow('result', cv.WINDOW_NORMAL)
 cv.resizeWindow('result', WINDOW_DIMS[0], WINDOW_DIMS[1])
 init_motors()
 set_servo_angle(SERVO_CLOSING_ANGLE)
+set_motor(1)
 
 try:
     while (not exit_requested):
