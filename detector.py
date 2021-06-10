@@ -17,8 +17,8 @@ WINDOW_DIMS = (1500, 200)
 
 #detection pipeline constants
 WHITE_RGB = np.array([255, 255, 255], dtype=np.uint8)
-DISTANCE_THRESHOLD = 25 #maximum distance beetween each rgb component and the mean of the three
-GRAYSCALE_THRESHOLD = 30 #maximum brightness allowed
+DISTANCE_THRESHOLD = 50 #maximum distance beetween each rgb component and the mean of the three
+GRAYSCALE_THRESHOLD = 50 #maximum brightness allowed
 RESIZE_FACTOR = 50 #resize value in pixels
 LOW_PASS_FILTER_KERNEL_DIMS = (4, 4) #size of the kernel matrix
 BLOBS_SIZES_BOUNDS = (7, 100) #bounds on the blob sizes
@@ -72,6 +72,7 @@ else:
 if (CAM_MODE):
     try:
         video_stream = cv.VideoCapture(VIDEO_SOURCE_INDEX)
+        video_stream.set(cv.CAP_PROP_BUFFERSIZE, 1)
         print("--> using cam")
     except:
         print("--> failed to open the cam, fallback on using the default image")
